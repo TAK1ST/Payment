@@ -1,0 +1,64 @@
+﻿using Microsoft.AspNetCore.Mvc;
+using Net.payOS;
+using Net.payOS.Types;
+using Payment.DTOs;
+
+namespace Payment.Controllers;
+[ApiController]
+[Route("api/[controller]")]
+public class PayOSController : ControllerBase
+{
+    private readonly PayOS _payOS;
+
+    public PayOSController(PayOS payOS)
+    {
+        _payOS = payOS;
+    }
+
+    [HttpPost("create-payment-link")]
+    public async Task<IActionResult> CreatePaymentLink([FromBody] CreatePaymentRequest request)
+    {
+        // request chứa các trường như: amount, description, items[], returnUrl, cancelUrl
+
+        long orderCode = request.OrderCode;
+        int amount = request.Amount;
+        string description = request.Description;
+
+        var items = request.Items.Select(i => new ItemData(i.Name, i.Quantity, i.Price)).ToList();
+
+        string returnUrl = request.ReturnUrl;
+        string cancelUrl = request.CancelUrl;
+
+        var paymentData = new PaymentData(
+            orderCode: orderCode,
+            amount: amount,
+            description: description,
+            items: items,
+            cancelUrl: cancelUrl,
+            returnUrl: returnUrl
+        );
+
+        var result = await _payOS.createPaymentLink(paymentData);
+
+        return Ok(new
+        {
+            result.checkoutUrl,
+            result.orderCode,
+            result.paymentLinkId
+        });
+    }
+
+    [HttpGet("info/{orderCode:long}")]
+    public async Task<IActionResult> GetPaymentInfo(long orderCode)
+    {
+        var info = await _payOS.getPaymentLinkInformation(orderCode);
+        return Ok(info);
+    }
+
+    [HttpPost("cancel/{orderCode:long}")]
+    public async Task<IActionResult> CancelPaymentLink(long orderCode, [FromBody] CancelRequest cancel)
+    {
+        var info = await _payOS.cancelPaymentLink(orderCode, cancel.Reason);
+        return Ok(info);
+    }
+}
